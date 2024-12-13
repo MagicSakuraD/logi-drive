@@ -26,21 +26,11 @@ interface GamepadProps {
   feedbackSpeed: number;
 }
 
-
 const logDeviceInfo = (device: HIDDevice) => {
-  console.log('Device Info:', device.productName);
+  console.log("Device Info:", device.productName);
   for (const collection of device.collections) {
     console.log(`Usage: ${collection.usage}`);
     console.log(`Usage page: ${collection.usagePage}`);
-
-    collection.inputReports?.forEach(report => 
-      console.log(`Input report: ${report.reportId}`));
-      
-    collection.outputReports?.forEach(report => 
-      console.log(`Output report: ${report.reportId}`));
-      
-    collection.featureReports?.forEach(report => 
-      console.log(`Feature report: ${report.reportId}`));
   }
 };
 
@@ -57,14 +47,22 @@ const Gamepad: React.FC<GamepadProps> = ({
   const connectHIDDevice = async () => {
     try {
       const devices = await navigator.hid.requestDevice({
-        filters: [{ vendorId: 0x046d, productId: 0xc266 }], // Logitech G923
+        filters: [
+          { vendorId: 0x046d, productId: 0xc266 }, // Logitech G923
+          { usagePage: 0x01, usage: 0x04 }, // 示例十六进制转化
+        ],
       });
 
       if (devices.length > 0) {
         const selectedDevice = devices[0];
-        await selectedDevice.open();
+        if (!selectedDevice.opened) {
+          await selectedDevice.open();
+          console.log("HID Device opened:", selectedDevice);
+        }
         setDevice(selectedDevice);
-        console.log("HID Device connected:", selectedDevice);
+        logDeviceInfo(selectedDevice);
+      } else {
+        console.warn("No HID devices found matching filters.");
       }
     } catch (error) {
       console.error("Failed to connect HID device:", error);
@@ -72,21 +70,16 @@ const Gamepad: React.FC<GamepadProps> = ({
   };
 
   useEffect(() => {
-    // 检查浏览器是否支持 WebHID API
     if ("hid" in navigator) {
       setIsHIDSupported(true);
       console.log("WebHID API supported");
 
       const handleDisconnect = (event: HIDConnectionEvent) => {
         if (event.device === device) {
-          setDevice(null);
           console.log("HID device disconnected:", event.device);
+          setDevice(null);
         }
       };
-      
-      if (device) {
-        logDeviceInfo(device);
-      }
 
       navigator.hid.addEventListener("disconnect", handleDisconnect);
 
@@ -95,48 +88,22 @@ const Gamepad: React.FC<GamepadProps> = ({
       };
     } else {
       setIsHIDSupported(false);
+      console.error("WebHID API is not supported in this browser.");
     }
   }, [device]);
 
   useEffect(() => {
     const handleInputReport = (event: HIDInputReportEvent) => {
+      console.log("handleInputReport run");
       try {
         const { data } = event;
 
-        // 检查 data 是否存在
-        if (!data || !data.buffer) {
-          console.error("No valid data received from HID device");
+        if (!data || data.byteLength < 8) {
+          console.error("Invalid or insufficient HID data.");
           return;
         }
 
-        // 检查数据长度是否符合预期
-        const expectedLength = 8; // 根据设备协议定义的长度
-        if (data.byteLength < expectedLength) {
-          console.error(
-            `Invalid HID data length: expected at least ${expectedLength} bytes, but got ${data.byteLength}`
-          );
-          return;
-        }
-
-        // 转换为 DataView
         const view = new DataView(data.buffer);
-
-        // 检查是否有关键字节（防止越界访问）
-        const minimumBytesRequired = 8; // 确保至少有 8 字节数据
-        if (view.byteLength < minimumBytesRequired) {
-          console.error(
-            `Incomplete HID data, expected at least ${minimumBytesRequired} bytes`
-          );
-          return;
-        }
-
-        // 打印原始数据（调试用）
-        const rawData = Array.from(new Uint8Array(data.buffer))
-          .map((byte) => byte.toString(16).padStart(2, "0"))
-          .join(" ");
-        console.log("Raw HID data:", rawData);
-
-        // 解析数据
         const newAxes = {
           rotation: Math.round((view.getInt16(0, true) / 32768) * 450), // 小端序
           brake: parseFloat(((255 - view.getUint8(2)) / 255).toFixed(2)), // 刹车
@@ -144,7 +111,6 @@ const Gamepad: React.FC<GamepadProps> = ({
         };
         setAxes(newAxes);
 
-        // 解析按钮状态，设置当前档位
         const buttonStates = [4, 5, 6, 7].map((offset) =>
           view.getUint8(offset)
         );
@@ -153,18 +119,22 @@ const Gamepad: React.FC<GamepadProps> = ({
         else if (buttonStates[2]) setCurrentGear("N");
         else if (buttonStates[3]) setCurrentGear("D");
       } catch (error) {
-        console.error("Error processing HID data:", error);
+        console.error("Error processing HID input report:", error);
       }
     };
 
     if (device) {
-      // 移除可能已有的监听器，防止重复绑定
-      device.removeEventListener("inputreport", handleInputReport);
+      if (!device.opened) {
+        device
+          .open()
+          .catch((error) => console.error("Error opening device:", error));
+      }
+      console.log(device,"device open");
+
       device.addEventListener("inputreport", handleInputReport);
-      console.log("Listening for HID input reports");
+      console.log("Listening for HID input reports.");
 
       return () => {
-        // 清理事件监听器
         device.removeEventListener("inputreport", handleInputReport);
       };
     }
