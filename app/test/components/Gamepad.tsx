@@ -1,10 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import {
-  
-  CardHeader,
-  
-} from "@/components/ui/card";
+import { CardHeader } from "@/components/ui/card";
 import { CircleAlert } from "lucide-react";
 import Pedal from "./Pedal";
 import GearShift from "./GearShift";
@@ -138,13 +134,13 @@ const Gamepad: React.FC<GamepadProps> = ({
 
               <SteerWheel rotation={axes.rotation} />
               <GearShift gear={currentGear} />
-              <Gauge
+              {/* <Gauge
                 value={parseFloat((feedbackSpeed * 0.036).toFixed(1))}
                 min={0}
                 max={100}
                 label="Speed"
                 units="km/h"
-              />
+              /> */}
             </div>
           ) : (
             <div className="flex flex-row items-center justify-center w-full h-20">
