@@ -90,6 +90,7 @@ const Gamepad: React.FC<GamepadProps> = ({
             brake: parseFloat(((1 - gp.axes[1]) / 2 || 0).toFixed(2)), // Brake
             throttle: parseFloat(((1 - gp.axes[2]) / 2 || 0).toFixed(2)), // Throttle
           };
+
           setAxes(newAxes);
 
           // Update buttons state
